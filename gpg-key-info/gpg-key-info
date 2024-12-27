@@ -24,7 +24,8 @@ _global_variables() {
 
 _requirements() {
   _check_cmd \
-    "gpg"
+    "gpg" \
+    "gnupg"
   _check_cmd \
     "grep"
 }
