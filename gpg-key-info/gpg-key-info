@@ -15,8 +15,10 @@ source \
 # shellcheck disable=SC2034
 _global_variables() {
   call_date=""
-  gnupg_home=""
   target_key=""
+  output_type=""
+  key_type=""
+  gnupg_home=""
   command_args=()
   color=""
   quiet=""
