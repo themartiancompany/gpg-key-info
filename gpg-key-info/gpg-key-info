@@ -250,10 +250,26 @@ _gpg_key_info() {
     "_${_output_type}_get" \
        "${_key}"
   elif [[ "${_key_type}" == "private" ]]; then
+    _msg=(
+      "Not implemented."
+    )
     _msg_error \
-      "not implemented" \
+      "${_msg[*]}" \
       1
   fi
+}
+
+_target_key_auto_detect() {
+  local \
+    _target_key \
+    _gpg_opts=()
+  if [[ "" == "" ]]; then
+  fi
+  _gpg_opts+=(
+    ""
+  )
+  gpg \
+    "${_gpg_opts[@]}"   
 }
 
 _set_overrides() {
@@ -283,6 +299,7 @@ _set_overrides() {
     "gnupg" \
     "home" \
     "${HOME}/.gnupg"
+  _target_key_auto_detect
 }
 
 # Show help usage, with an exit status.
@@ -297,18 +314,18 @@ _usage() {
 Retrieves info from a GNU Privacy Guard key file
 
 Usage:
-  $(_get "app" "name")
+  ${app_name}
     [options]
     <key>
 
   options:
      -o <output_type>       Can be 'fingerprint', 'id', 'name'
                             or 'email'.
-                            Default: $(_get "output" "type")
+                            Default: ${output_type}
      -t <key_type>          Can be 'public' or 'private'.
-                            Default: $(_get "key" "type")
+                            Default: ${key_type}
      -H <gnupg_home>        GnuPG configuration directory.
-                            Default: $(_get "gnupg" "home")
+                            Default: ${gnupg_home}
 
      -h                     This message.
      -c                     Enable color output
@@ -337,11 +354,11 @@ _display_flags() {
 # Shows configuration options.
 _show_config() {
   _msg_info "${app_name} configuration"
-  _msg_info "                Call date:   $(_get "call" "date")"
-  _msg_info "              Output type:   $(_get "output" "type")"
-  _msg_info "                 Key type:   $(_get "key" "type")"
-  _msg_info "          GNUPG directory:   $(_get "gnupg" "home")"
-  _msg_info "               Target key:   $(_get "target" "key")"
+  _msg_info "                Call date:   ${call_date}"
+  _msg_info "              Output type:   ${output_type}"
+  _msg_info "                 Key type:   ${key_type}"
+  _msg_info "          GNUPG directory:   ${gnupg_home}"
+  _msg_info "               Target key:   ${target_key}"
 }
 
 _globals
@@ -377,8 +394,11 @@ shift \
     OPTIND - 1 \
   ))
 if (( $# < 1 )); then
+  _msg=(
+    "No input key given."
+  )
   _msg_error \
-    "no input key given" \
+    "${_msg[*]}" \
     0
   _set_overrides
   _usage \
@@ -400,18 +420,10 @@ command_args+=(
 _set_overrides
 _show_config
 app_opts=(
-  "$(_get \
-       "target" \
-       "key")"
-  "$(_get \
-       "output" \
-       "type")"
-  "$(_get \
-       "key" \
-       "type")"
-  "$(_get \
-       "gnupg" \
-       "home")"
+  "${target_key}"
+  "${output_type}"
+  "${key_type}"
+  "${gnupg_home}"
 )
 _gpg_key_info \
   "${app_opts[@]}"
