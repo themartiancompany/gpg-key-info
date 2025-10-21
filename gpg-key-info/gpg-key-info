@@ -259,19 +259,6 @@ _gpg_key_info() {
   fi
 }
 
-_target_key_auto_detect() {
-  local \
-    _target_key \
-    _gpg_opts=()
-  if [[ "" == "" ]]; then
-  fi
-  _gpg_opts+=(
-    ""
-  )
-  gpg \
-    "${_gpg_opts[@]}"   
-}
-
 _set_overrides() {
   if [[ -v override_quiet ]]; then
     quiet="${override_quiet}"
@@ -299,7 +286,6 @@ _set_overrides() {
     "gnupg" \
     "home" \
     "${HOME}/.gnupg"
-  _target_key_auto_detect
 }
 
 # Show help usage, with an exit status.
