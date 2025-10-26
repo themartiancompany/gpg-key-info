@@ -55,7 +55,7 @@ shellcheck:
 	    "bash" \
 	  $(SCRIPT_FILES)
 
-install: install-scripts install-doc
+install: install-scripts install-doc install-man
 
 install-scripts:
 
