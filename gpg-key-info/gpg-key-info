@@ -1,6 +1,26 @@
 #!/usr/bin/env bash
+
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+#    ----------------------------------------------------------------------
+#    Copyright © 2024, 2025  Pellegrino Prevete
 #
-# SPDX-License-Identifier: AGPL-3.0-or-later
+#    All rights reserved
+#    ----------------------------------------------------------------------
+#
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU Affero General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU Affero General Public License for more details.
+#
+#    You should have received a copy of the GNU Affero General Public License
+#    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 
 _bin="$( \
   dirname \
@@ -8,9 +28,14 @@ _bin="$( \
       command \
         -v \
 	  "env")")"
-_lib="${_bin}/../lib"
-source \
-  "${_lib}/libcrash-bash/crash-bash"
+_lib="$( \
+  realpath \
+    "${_bin}/../lib")"
+_crash_bash="${_lib}/libcrash-bash/crash-bash"
+_sourced \
+  "${_crash_bash}" 2>/dev/null || \
+  source \
+    "${_crash_bash}"
 
 # shellcheck disable=SC2034
 _global_variables() {
@@ -34,34 +59,42 @@ _requirements() {
 
 _gpg_import_show_key() {
   local \
-    _key="${1}"
+    _key="${1}" \
+    _gpg_opts=()
+  _gpg_opts+=(
+    --homedir "${_gnupg_home}"
+    --import-options
+      show-only
+    --import
+    --keyid-format="long"
+    --with-colons
+  )
   cat \
     "${_key}" | \
     GNUPGHOME="${_gnupg_home}" \
     gpg \
-      --homedir "${_gnupg_home}" \
-      --import-options \
-        show-only \
-      --import \
-      --keyid-format="long" \
-      --with-colons \
-      2>/dev/null
+      "${_gpg_opts[@]}" \
+      2>"/dev/null"
 }
 
 _secret_key_check() {
   local \
     _key="${1}" \
-    _msg=() \
-    _results
+    _grep_opts=() \
+    _results \
+    _msg=()
+  _grep_opts+=(
+    -c
+    -e
+      "^sec:"
+    -e
+      "^ssb:"
+  )
   _results="$( \
     _gpg_import_show_key \
       "${_key}" | \
       grep \
-        -c \
-        -e \
-          "^sec:" \
-        -e \
-          "^ssb:" || \
+        "${_grep_opts[@]}" || \
     true)"
   if (( 0 < "${_results}" )); then
     _msg=(
@@ -76,12 +109,41 @@ _secret_key_check() {
 
 _keys_amount_get() {
   local \
-    _key="${1}"
+    _key="${1}" \
+    _grep_opts=()
+  _grep_opts+=(
+    -c
+      "^pub:"
+  )
   _gpg_import_show_key \
     "${_key}" | \
     grep \
-      -c \
-      "^pub:"
+      "${_grep_opts[@]}"
+}
+
+_key_single_assert() {
+  if (( 1 < "${_keys_amount}" )); then
+    _msg=(
+      "please publish only one public key at"
+      "a time."
+    )
+    _msg_error \
+      "${_msg[*]}" \
+      1
+  fi
+}
+
+_key_public_assert() {
+  if (( 0 == "${_keys_amount}" )); then
+    _msg=(
+      "Input target key file '${_key}'"
+      "does not not contains public keys."
+    )
+    _msg_error \
+      "${_msg[*]}" \
+      1
+  fi
+
 }
 
 _key_file_check() {
@@ -103,22 +165,27 @@ _key_file_check() {
   _keys_amount="$( \
     _keys_amount_get \
       "${_key}")"
-  if (( 1 < "${_keys_amount}" )); then
+  _key_single_assert
+  _key_public_assert
+}
+
+_fingerprint_short_unique_assert() {
+  if (( 0 == "${#_fingerprint_matches[@]}" )); then
     _msg=(
-      "please publish only one public key at"
-      "a time."
+      "Somehow the short public key fingerprint does not match"
+      "any full key fingerprint, please check the key file."
     )
     _msg_error \
-      "${_msg[*]}" \
+      "${_msg[*]}" \ 
       1
-  fi
-  if (( 0 == "${_keys_amount}" )); then
+  elif (( 1 < "${#_fingerprint_matches[@]}" )); then
     _msg=(
-      "Input target key file '${_key}'"
-      "does not not contains public keys."
+      "Somehow the short public key fingerprint identify"
+      "more than a single full key fingerprint,"
+      "please check the key file."
     )
     _msg_error \
-      "${_msg[*]}" \
+      "${_msg[*]}" \ 
       1
   fi
 }
@@ -126,30 +193,40 @@ _key_file_check() {
 _fingerprint_get() {
   local \
     _key="${1}" \
+    _awk_opts=() \
     _short_fingerprint \
     _fingerprint \
     _fingerprints=() \
     _fingerprint_matches=() \
+    _grep_opts=() \
     _msg=()
+  _grep_opts+=(
+    -e
+      "^pub:"
+  )
+  _awk_opts+=(
+    -F
+      ":"
+  )
   _short_fingerprint="$( \
     _gpg_import_show_key \
       "${_key}" | \
       grep \
-        -e \
-          "^pub:" | \
+        "${_grep_opts[@]}" | \
         awk \
-          -F \
-            ":" \
+          "${_awk_opts[@]}" \
           '{print $5}')"
+  _grep_opts=(
+    -e
+      "^fpr:"
+  )
   _fingerprints=( $( \
     _gpg_import_show_key \
       "${_key}" | \
       grep \
-        -e \
-          "^fpr:" |
+        "${_grep_opts[@]}" | \
         awk \
-          -F \
-            ":" \
+          "${_awk_opts[@]}" \
           '{print $10}')
   )
   for _fingerprint in "${_fingerprints[@]}"; do
@@ -159,27 +236,9 @@ _fingerprint_get() {
       )
     fi
   done
-  if (( 0 == "${#_fingerprint_matches[@]}" )); then
-    _msg=(
-      "somehow the short public key fingerprint does not match"
-      "any full key fingerprint, please check the key file."
-    )
-    _msg_error \
-      "${_msg[*]}" \ 
-      1
-  elif (( 1 < "${#_fingerprint_matches[@]}" )); then
-    _msg=(
-      "somehow the short public key fingerprint identify"
-      "more than a single full key fingerprint,"
-      "please check the key file."
-    )
-    _msg_error \
-      "${_msg[*]}" \ 
-      1
-  elif (( 1 == "${#_fingerprint_matches[@]}" )); then
-    echo \
-      "${_fingerprint_matches}"
-  fi
+  _fingerprint_short_unique_assert
+  echo \
+    "${_fingerprint_matches[0]}"
 }
 
 _id_get() {
@@ -297,6 +356,7 @@ _usage() {
       -d '' \
       _usage_text << \
         ENDUSAGETEXT || true
+
 Retrieves info from a GNU Privacy Guard key file
 
 Usage:
@@ -305,12 +365,12 @@ Usage:
     <key>
 
   options:
-     -o <output_type>       Can be 'fingerprint', 'id', 'name'
+     -o <output-type>       Can be 'fingerprint', 'id', 'name'
                             or 'email'.
                             Default: ${output_type}
-     -t <key_type>          Can be 'public' or 'private'.
+     -t <key-type>          Can be 'public' or 'private'.
                             Default: ${key_type}
-     -H <gnupg_home>        GnuPG configuration directory.
+     -H <gnupg-home>        GnuPG configuration directory.
                             Default: ${gnupg_home}
 
      -h                     This message.
@@ -367,8 +427,11 @@ while \
          _usage \
            0 ;;
     *)
+    _msg=(
+      "Invalid argument '${arg}'"
+    )
     _msg_error \
-      "Invalid argument '${arg}'" \
+      "${_msg[*]}" \
       0
     _usage \
       1
@@ -391,11 +454,9 @@ if (( $# < 1 )); then
     1
 fi
 if (( 0 < $# )); then
-  _set \
-    "target" \
-    "key" \
-    "$(realpath \
-         "${1}")"
+  target_key="$( \
+    realpath \
+      "${1}")"
 fi
 shift \
   1 || \
